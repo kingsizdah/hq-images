@@ -1,6 +1,6 @@
-# HQ images
+# Container images
 
-CI builds for custom container images used by the HQ cluster. Currently:
+CI builds for custom container images. Currently:
 
 - **`paymenter/`** — custom Paymenter image: pinned upstream, `filament-jalali`, Persian (`fa`) translations, RTL layout, no bundled gateways/server extensions/extra languages.
 

@@ -1,6 +1,6 @@
-# Custom Paymenter image for Wordup HQ.
-# Build from the repo root: podman build -f images/paymenter/Dockerfile -t <tag> images/paymenter
-# Keeps k3s/containerd clean — no Docker on the server, no runtime composer hacks.
+# Custom Paymenter image.
+# Build from the repo root: docker build -f paymenter/Dockerfile -t <tag> paymenter
+# Keeps the container runtime clean — no runtime composer hacks.
 
 # Pin the exact upstream revision currently running in the cluster.
 FROM ghcr.io/paymenter/paymenter@sha256:27471e077f4413f5f7c4e63656a8e7894892fc8c6885e5481f91e420bd37b63b
@@ -29,5 +29,10 @@ RUN sed -i "s/^        'ar',$/        'ar',\\n        'fa',/" /app/config/app.ph
 COPY lang/fa /app/lang/fa
 COPY FilamentJalaliProvider.php /app/app/Providers/FilamentJalaliProvider.php
 COPY bootstrap-providers.php /app/bootstrap/providers.php
+
+# Bundled gateways/servers were stripped above. Drop our gateway into the
+# default-extension source; the entrypoint copies it into /app/extensions on
+# first boot when that directory is empty.
+COPY extensions/Gateways/Zibal /app/extensions_default/Gateways/Zibal
 
 # Upstream ENTRYPOINT/CMD (entrypoint.sh -> supervisord) are preserved.
