@@ -21,8 +21,9 @@ RUN rm -rf /app/extensions/* /app/extensions_default/* \
  && mkdir -p /app/extensions /app/extensions_default \
  && find /app/lang -mindepth 1 -maxdepth 1 ! -name en -exec rm -rf {} +
 
-# 3. Enable RTL for Persian (the layout checks config('app.rtl_locales')).
-RUN sed -i "s/^        'ar',$/        'ar',\\n        'fa',/" /app/config/app.php
+# 3. Register Persian: RTL layout and a label for the locale switcher.
+RUN sed -i "s/^        'ar',$/        'ar',\\n        'fa',/" /app/config/app.php \
+ && sed -i "/^        'en' => 'English',$/a\\        'fa' => 'فارسی'," /app/config/app.php
 
 # 4. Our files.
 COPY lang/fa /app/lang/fa
