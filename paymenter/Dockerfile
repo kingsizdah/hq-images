@@ -11,7 +11,7 @@ USER root
 #    v3.0.0 matches the Filament 5.7.x shipped in this image (v3.1.0 needs >=5.10).
 #    The package auto-registers its service provider via Laravel discovery.
 RUN cd /app \
- && composer require ariaieboy/filament-jalali:3.0.0 firebase/php-jwt:^6.11 --no-interaction --no-progress \
+ && composer require ariaieboy/filament-jalali:3.0.0 --no-interaction --no-progress \
  && composer clear-cache
 
 # 2. Remove all bundled gateways / server extensions and all languages except English.
