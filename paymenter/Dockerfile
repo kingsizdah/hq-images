@@ -11,7 +11,7 @@ USER root
 #    v3.0.0 matches the Filament 5.7.x shipped in this image (v3.1.0 needs >=5.10).
 #    The package auto-registers its service provider via Laravel discovery.
 RUN cd /app \
- && composer require ariaieboy/filament-jalali:3.0.0 --no-interaction --no-progress \
+ && composer require ariaieboy/filament-jalali:3.0.0 firebase/php-jwt:^6.11 --no-interaction --no-progress \
  && composer clear-cache
 
 # 2. Remove all bundled gateways / server extensions and all languages except English.
@@ -34,5 +34,6 @@ COPY bootstrap-providers.php /app/bootstrap/providers.php
 # default-extension source; the entrypoint copies it into /app/extensions on
 # first boot when that directory is empty.
 COPY extensions/Gateways/Zibal /app/extensions_default/Gateways/Zibal
+COPY extensions/Others/Zitadel /app/extensions_default/Others/Zitadel
 
 # Upstream ENTRYPOINT/CMD (entrypoint.sh -> supervisord) are preserved.
