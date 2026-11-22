@@ -1,3 +1,15 @@
+@if($forceSso && !request()->has('sso_error'))
+<script>
+    window.location.replace('{{ route('zitadel.redirect') }}');
+</script>
+@endif
+
+@if(request()->has('sso_error'))
+<div class="w-full text-center text-sm text-error py-4">
+    Sign-in with SSO failed. <a class="zitadel-sso-button underline" href="{{ route('zitadel.redirect') }}">Try again</a>
+</div>
+@endif
+
 @if($forceSso)
 <style>
     #login input,

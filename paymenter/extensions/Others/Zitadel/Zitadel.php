@@ -115,7 +115,11 @@ class Zitadel extends Extension
 
     public function redirect()
     {
-        $discovery = $this->discovery();
+        try {
+            $discovery = $this->discovery();
+        } catch (\Throwable $e) {
+            return redirect()->route('login', ['sso_error' => 1])->with('error', 'SSO is not configured correctly.');
+        }
 
         $state = Str::random(40);
         $nonce = Str::random(40);
@@ -143,11 +147,11 @@ class Zitadel extends Extension
     public function callback(Request $request)
     {
         if (! $request->filled('code') || ! $request->filled('state')) {
-            return redirect()->route('login')->with('error', 'Invalid SSO response.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO response.');
         }
 
         if (! hash_equals((string) Session::pull('zitadel_state'), (string) $request->input('state'))) {
-            return redirect()->route('login')->with('error', 'Invalid SSO state.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO state.');
         }
 
         $discovery = $this->discovery();
@@ -162,7 +166,7 @@ class Zitadel extends Extension
         ]);
 
         if (! $response->successful()) {
-            return redirect()->route('login')->with('error', 'SSO token exchange failed.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','SSO token exchange failed.');
         }
 
         $tokens = $response->json();
@@ -172,29 +176,29 @@ class Zitadel extends Extension
             $jwks = Http::timeout(15)->get($discovery['jwks_uri'])->json();
             $claims = JWT::decode($tokens['id_token'], JWK::parseKeySet($jwks), ['RS256']);
         } catch (\Throwable $e) {
-            return redirect()->route('login')->with('error', 'Invalid SSO identity token.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
         }
 
         $issuer = rtrim((string) $this->config('issuer'), '/');
         if (($claims->iss ?? null) !== $issuer || ($claims->nonce ?? null) !== Session::pull('zitadel_nonce')) {
-            return redirect()->route('login')->with('error', 'Invalid SSO identity token.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
         }
 
         $audience = is_array($claims->aud ?? null) ? $claims->aud : [$claims->aud ?? null];
         if (! in_array($this->config('client_id'), $audience, true)) {
-            return redirect()->route('login')->with('error', 'Invalid SSO audience.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO audience.');
         }
 
         $email = strtolower((string) ($claims->email ?? ''));
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
-            return redirect()->route('login')->with('error', 'SSO response did not include an email address.');
+            return redirect()->route('login', ['sso_error' => 1])->with('error','SSO response did not include an email address.');
         }
 
         $user = User::where('email', $email)->first();
 
         if (! $user) {
             if (! $this->config('auto_create')) {
-                return redirect()->route('login')->with('error', 'This account is not registered.');
+                return redirect()->route('login', ['sso_error' => 1])->with('error','This account is not registered.');
             }
 
             $user = User::create([
