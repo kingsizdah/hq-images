@@ -41,6 +41,17 @@ class Zitadel extends Extension
                 'priority' => 10,
             ]];
         });
+
+        Event::listen('footer', function () {
+            if (! $this->config('issuer') || ! $this->config('client_id')) {
+                return [];
+            }
+
+            return [[
+                'view' => view('zitadel-sso::logout-hook')->render(),
+                'priority' => 10,
+            ]];
+        });
     }
 
     /**
@@ -155,6 +166,7 @@ class Zitadel extends Extension
         }
 
         $tokens = $response->json();
+        Session::put('zitadel_id_token', $tokens['id_token'] ?? null);
 
         try {
             $jwks = Http::timeout(15)->get($discovery['jwks_uri'])->json();
@@ -207,5 +219,36 @@ class Zitadel extends Extension
         (new Login)->execute($user, true);
 
         return redirect()->intended(route('home'));
+    }
+
+    public function logout()
+    {
+        // Capture before the local logout invalidates the session.
+        $idToken = Session::get('zitadel_id_token');
+
+        (new \App\Actions\Auth\Logout)->execute();
+
+        // Not configured (or native login) — keep the original logout behaviour.
+        if (! $idToken || ! $this->config('issuer') || ! $this->config('client_id')) {
+            return redirect('/');
+        }
+
+        try {
+            $endpoint = $this->discovery()['end_session_endpoint'] ?? null;
+        } catch (\Throwable $e) {
+            return redirect('/');
+        }
+
+        if (! $endpoint) {
+            return redirect('/');
+        }
+
+        $query = http_build_query([
+            'id_token_hint' => $idToken,
+            'post_logout_redirect_uri' => route('home'),
+            'client_id' => $this->config('client_id'),
+        ]);
+
+        return redirect($endpoint . '?' . $query);
     }
 }

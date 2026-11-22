@@ -8,9 +8,16 @@ code flow with PKCE.
 Create a web application in your OIDC provider with:
 
 - Redirect URI: `https://<your-host>/auth/zitadel/callback`
+- Post Logout URI: `https://<your-host>/`
 - Grant type: Authorization Code
 - Response type: Code
 - Scopes: `openid profile email`
+
+For single logout, the extension stores the ID token and adds
+`GET /auth/zitadel/logout`. It logs out locally, then calls the provider's
+`end_session_endpoint` with `id_token_hint` and the post-logout URI. The logout
+button is intercepted only once the issuer and client ID are configured; before
+that, the built-in local logout remains unchanged.
 
 ## Extension settings
 
