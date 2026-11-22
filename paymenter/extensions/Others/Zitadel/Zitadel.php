@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\Str;
@@ -166,6 +167,13 @@ class Zitadel extends Extension
         ]);
 
         if (! $response->successful()) {
+            $body = $response->json();
+            Log::warning('Zitadel SSO: token exchange failed', [
+                'status' => $response->status(),
+                'error' => $body['error'] ?? null,
+                'description' => $body['error_description'] ?? null,
+            ]);
+
             return redirect()->route('login', ['sso_error' => 1])->with('error','SSO token exchange failed.');
         }
 
@@ -176,11 +184,20 @@ class Zitadel extends Extension
             $jwks = Http::timeout(15)->get($discovery['jwks_uri'])->json();
             $claims = JWT::decode($tokens['id_token'], JWK::parseKeySet($jwks), ['RS256']);
         } catch (\Throwable $e) {
+            Log::warning('Zitadel SSO: ID token verification failed', ['message' => $e->getMessage()]);
+
             return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
         }
 
         $issuer = rtrim((string) $this->config('issuer'), '/');
-        if (($claims->iss ?? null) !== $issuer || ($claims->nonce ?? null) !== Session::pull('zitadel_nonce')) {
+        $expectedNonce = Session::pull('zitadel_nonce');
+        if (($claims->iss ?? null) !== $issuer || ($claims->nonce ?? null) !== $expectedNonce) {
+            Log::warning('Zitadel SSO: iss/nonce mismatch', [
+                'expected_iss' => $issuer,
+                'actual_iss' => $claims->iss ?? null,
+                'nonce_match' => ($claims->nonce ?? null) === $expectedNonce,
+            ]);
+
             return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
         }
 
@@ -191,6 +208,8 @@ class Zitadel extends Extension
 
         $email = strtolower((string) ($claims->email ?? ''));
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            Log::warning('Zitadel SSO: no email claim', ['claims' => array_keys((array) $claims)]);
+
             return redirect()->route('login', ['sso_error' => 1])->with('error','SSO response did not include an email address.');
         }
 
