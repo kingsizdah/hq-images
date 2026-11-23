@@ -187,7 +187,8 @@ class Zitadel extends Extension
 
         try {
             $jwks = Http::timeout(15)->get($discovery['jwks_uri'])->json();
-            $claims = JWT::decode($tokens['id_token'], JWK::parseKeySet($jwks), ['RS256']);
+            $headers = null; // firebase/php-jwt v7 takes this by reference
+            $claims = JWT::decode($tokens['id_token'], JWK::parseKeySet($jwks), $headers);
         } catch (\Throwable $e) {
             Log::warning('Zitadel SSO: ID token verification failed', ['message' => $e->getMessage()]);
 
