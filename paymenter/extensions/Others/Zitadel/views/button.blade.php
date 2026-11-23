@@ -6,7 +6,7 @@
 
 @if(request()->has('sso_error'))
 <div class="w-full text-center text-sm text-error py-4">
-    Sign-in with SSO failed: {{ session('error') ?: 'unknown error' }}
+    Sign-in with SSO failed: {{ request('sso_message') ?: 'unknown error' }}
     <a class="zitadel-sso-button underline" href="{{ route('zitadel.redirect') }}">Try again</a>
 </div>
 @endif

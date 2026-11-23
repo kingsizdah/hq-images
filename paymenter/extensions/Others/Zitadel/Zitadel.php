@@ -119,7 +119,7 @@ class Zitadel extends Extension
         try {
             $discovery = $this->discovery();
         } catch (\Throwable $e) {
-            return redirect()->route('login', ['sso_error' => 1])->with('error', 'SSO is not configured correctly.');
+            return $this->loginError('SSO is not configured correctly.');
         }
 
         $state = Str::random(40);
@@ -148,11 +148,11 @@ class Zitadel extends Extension
     public function callback(Request $request)
     {
         if (! $request->filled('code') || ! $request->filled('state')) {
-            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO response.');
+            return $this->loginError('Invalid SSO response.');
         }
 
         if (! hash_equals((string) Session::pull('zitadel_state'), (string) $request->input('state'))) {
-            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO state.');
+            return $this->loginError('Invalid SSO state.');
         }
 
         $discovery = $this->discovery();
@@ -174,7 +174,7 @@ class Zitadel extends Extension
                 'description' => $body['error_description'] ?? null,
             ]);
 
-            return redirect()->route('login', ['sso_error' => 1])->with('error','SSO token exchange failed.');
+            return $this->loginError('SSO token exchange failed.');
         }
 
         $tokens = $response->json();
@@ -186,7 +186,7 @@ class Zitadel extends Extension
         } catch (\Throwable $e) {
             Log::warning('Zitadel SSO: ID token verification failed', ['message' => $e->getMessage()]);
 
-            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
+            return $this->loginError('Invalid SSO identity token.');
         }
 
         $issuer = rtrim((string) $this->config('issuer'), '/');
@@ -198,26 +198,26 @@ class Zitadel extends Extension
                 'nonce_match' => ($claims->nonce ?? null) === $expectedNonce,
             ]);
 
-            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO identity token.');
+            return $this->loginError('Invalid SSO identity token.');
         }
 
         $audience = is_array($claims->aud ?? null) ? $claims->aud : [$claims->aud ?? null];
         if (! in_array($this->config('client_id'), $audience, true)) {
-            return redirect()->route('login', ['sso_error' => 1])->with('error','Invalid SSO audience.');
+            return $this->loginError('Invalid SSO audience.');
         }
 
         $email = strtolower((string) ($claims->email ?? ''));
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Log::warning('Zitadel SSO: no email claim', ['claims' => array_keys((array) $claims)]);
 
-            return redirect()->route('login', ['sso_error' => 1])->with('error','SSO response did not include an email address.');
+            return $this->loginError('SSO response did not include an email address.');
         }
 
         $user = User::where('email', $email)->first();
 
         if (! $user) {
             if (! $this->config('auto_create')) {
-                return redirect()->route('login', ['sso_error' => 1])->with('error','This account is not registered.');
+                return $this->loginError('This account is not registered.');
             }
 
             $user = User::create([
@@ -242,6 +242,16 @@ class Zitadel extends Extension
         (new Login)->execute($user, true);
 
         return redirect()->intended(route('home'));
+    }
+
+    private function loginError(string $message)
+    {
+        Log::warning('Zitadel SSO: ' . $message);
+
+        return redirect()->route('login', [
+            'sso_error' => 1,
+            'sso_message' => $message,
+        ]);
     }
 
     public function logout()
