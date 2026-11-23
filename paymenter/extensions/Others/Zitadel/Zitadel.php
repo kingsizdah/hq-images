@@ -212,6 +212,27 @@ class Zitadel extends Extension
         }
 
         $email = strtolower((string) ($claims->email ?? ''));
+        $givenName = $claims->given_name ?? null;
+        $familyName = $claims->family_name ?? null;
+
+        // Zitadel does not always put email in the ID token; use Userinfo as fallback.
+        if (! filter_var($email, FILTER_VALIDATE_EMAIL)
+            && isset($tokens['access_token'])
+            && ! empty($discovery['userinfo_endpoint'])) {
+            $userinfo = Http::withToken($tokens['access_token'])
+                ->timeout(15)
+                ->get($discovery['userinfo_endpoint']);
+
+            if ($userinfo->successful() && is_array($userinfo->json())) {
+                $profile = $userinfo->json();
+                $email = strtolower((string) ($profile['email'] ?? ''));
+                $givenName ??= $profile['given_name'] ?? null;
+                $familyName ??= $profile['family_name'] ?? null;
+            } else {
+                Log::warning('Zitadel SSO: userinfo failed', ['status' => $userinfo->status()]);
+            }
+        }
+
         if (! filter_var($email, FILTER_VALIDATE_EMAIL)) {
             Log::warning('Zitadel SSO: no email claim', ['claims' => array_keys((array) $claims)]);
 
@@ -226,8 +247,8 @@ class Zitadel extends Extension
             }
 
             $user = User::create([
-                'first_name' => $claims->given_name ?? 'User',
-                'last_name' => $claims->family_name ?? '',
+                'first_name' => $givenName ?? 'User',
+                'last_name' => $familyName ?? '',
                 'email' => $email,
                 'password' => Hash::make(Str::random(40)),
                 'email_verified_at' => now(),
