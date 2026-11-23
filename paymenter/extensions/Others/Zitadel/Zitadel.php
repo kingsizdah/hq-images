@@ -122,14 +122,13 @@ class Zitadel extends Extension
             return $this->loginError('SSO is not configured correctly.');
         }
 
-        $state = Str::random(40);
-        $nonce = Str::random(40);
-        $verifier = Str::random(64);
+        // Stateless flow: the state carries a signed nonce, and the PKCE verifier
+        // is derived from it. Nothing has to survive in the PHP session.
+        $nonce = Str::random(32);
+        $signature = hash_hmac('sha256', $nonce, (string) config('app.key'));
+        $state = $nonce . '.' . $signature;
+        $verifier = hash_hmac('sha256', 'verifier:' . $nonce, (string) config('app.key'));
         $challenge = rtrim(strtr(base64_encode(hash('sha256', $verifier, true)), '+/', '-_'), '=');
-
-        Session::put('zitadel_state', $state);
-        Session::put('zitadel_nonce', $nonce);
-        Session::put('zitadel_verifier', $verifier);
 
         $query = http_build_query([
             'client_id' => $this->config('client_id'),
@@ -151,9 +150,15 @@ class Zitadel extends Extension
             return $this->loginError('Invalid SSO response.');
         }
 
-        if (! hash_equals((string) Session::pull('zitadel_state'), (string) $request->input('state'))) {
+        $parts = explode('.', (string) $request->input('state'), 2);
+        if (count($parts) !== 2 || ! hash_equals(
+            hash_hmac('sha256', $parts[0], (string) config('app.key')),
+            $parts[1]
+        )) {
             return $this->loginError('Invalid SSO state.');
         }
+        $nonce = $parts[0];
+        $verifier = hash_hmac('sha256', 'verifier:' . $nonce, (string) config('app.key'));
 
         $discovery = $this->discovery();
 
@@ -163,7 +168,7 @@ class Zitadel extends Extension
             'redirect_uri' => route('zitadel.callback'),
             'client_id' => $this->config('client_id'),
             'client_secret' => $this->config('client_secret'),
-            'code_verifier' => Session::pull('zitadel_verifier'),
+            'code_verifier' => $verifier,
         ]);
 
         if (! $response->successful()) {
@@ -190,12 +195,11 @@ class Zitadel extends Extension
         }
 
         $issuer = rtrim((string) $this->config('issuer'), '/');
-        $expectedNonce = Session::pull('zitadel_nonce');
-        if (($claims->iss ?? null) !== $issuer || ($claims->nonce ?? null) !== $expectedNonce) {
+        if (($claims->iss ?? null) !== $issuer || ($claims->nonce ?? null) !== $nonce) {
             Log::warning('Zitadel SSO: iss/nonce mismatch', [
                 'expected_iss' => $issuer,
                 'actual_iss' => $claims->iss ?? null,
-                'nonce_match' => ($claims->nonce ?? null) === $expectedNonce,
+                'nonce_match' => ($claims->nonce ?? null) === $nonce,
             ]);
 
             return $this->loginError('Invalid SSO identity token.');
