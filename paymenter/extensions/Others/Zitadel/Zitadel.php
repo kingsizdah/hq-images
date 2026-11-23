@@ -266,6 +266,15 @@ class Zitadel extends Extension
         }
 
         (new Login)->execute($user, true);
+        Log::info('Zitadel SSO: login successful', [
+            'user_id' => $user->id,
+            'email' => $user->email,
+            'role' => $user->role?->name,
+        ]);
+
+        if ($user->role) {
+            return redirect('/admin');
+        }
 
         return redirect()->intended(route('home'));
     }
